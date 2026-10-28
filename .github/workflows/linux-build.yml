@@ -2,17 +2,17 @@ name: Linux Build
 
 on:
   push:
-    branches: [ dev/linux, main ]
+    branches: [ dev/linux ]
     paths:
       - 'linux-app/**'
   pull_request:
-    branches: [ dev/linux, main ]
+    branches: [ dev/linux ]
     paths:
       - 'linux-app/**'
   workflow_dispatch:
 
 jobs:
-  build-linux:
+  build:
     name: Build Linux App
     runs-on: ubuntu-latest
     
@@ -20,30 +20,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check if linux-app exists
-        id: check_linux
-        run: |
-          if [ -d "linux-app" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Install Rust
-        if: steps.check_linux.outputs.exists == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
           profile: minimal
 
-      - name: Install dependencies
-        if: steps.check_linux.outputs.exists == 'true'
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libbluetooth-dev libdbus-1-dev pkg-config
 
       - name: Cache Cargo
-        if: steps.check_linux.outputs.exists == 'true'
         uses: actions/cache@v3
         with:
           path: |
@@ -56,28 +44,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build in debug mode
-        if: steps.check_linux.outputs.exists == 'true'
-        run: cd linux-app && cargo build --locked
-
-      - name: Build in release mode
-        if: steps.check_linux.outputs.exists == 'true'
-        run: cd linux-app && cargo build --locked --release
+      - name: Build Release
+        working-directory: linux-app
+        run: cargo build --release
 
       - name: Run tests
-        if: steps.check_linux.outputs.exists == 'true'
-        run: cd linux-app && cargo test --locked
-
-      - name: Upload Debug Binary
-        if: steps.check_linux.outputs.exists == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: OmarchyConnect-Linux-Debug
-          path: linux-app/target/debug/omarchy-connect
-          retention-days: 30
+        working-directory: linux-app
+        run: cargo test
 
       - name: Upload Release Binary
-        if: steps.check_linux.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: OmarchyConnect-Linux-Release

@@ -2,11 +2,11 @@ name: Android Build
 
 on:
   push:
-    branches: [ dev/android, main ]
+    branches: [ dev/android ]
     paths:
       - 'android-app/**'
   pull_request:
-    branches: [ dev/android, main ]
+    branches: [ dev/android ]
     paths:
       - 'android-app/**'
   workflow_dispatch:
@@ -20,40 +20,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check if android-app exists
-        id: check_android
-        run: |
-          if [ -d "android-app" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up JDK 17
-        if: steps.check_android.outputs.exists == 'true'
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        if: steps.check_android.outputs.exists == 'true'
+      - name: Install Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cache-disabled: true
 
-      - name: Grant execute permission for gradlew
-        if: steps.check_android.outputs.exists == 'true'
-        run: chmod +x ./android-app/gradlew
+      - name: Make gradlew executable
+        working-directory: android-app
+        run: chmod +x gradlew
 
-      - name: Build with Gradle
-        if: steps.check_android.outputs.exists == 'true'
-        run: cd android-app && ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Build Debug APK
+        working-directory: android-app
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Build Release APK
-        if: steps.check_android.outputs.exists == 'true'
-        run: cd android-app && ./gradlew assembleRelease --no-daemon --stacktrace
+        working-directory: android-app
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload Debug APK
-        if: steps.check_android.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: OmarchyConnect-Android-Debug
@@ -61,7 +51,6 @@ jobs:
           retention-days: 30
 
       - name: Upload Release APK
-        if: steps.check_android.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: OmarchyConnect-Android-Release

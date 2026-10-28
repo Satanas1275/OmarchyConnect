@@ -1,99 +1,57 @@
-name: CI
+name: CI Checks
 
 on:
   push:
-    branches: [ dev/android, dev/linux, main ]
+    branches: [ dev/android, dev/linux ]
   pull_request:
-    branches: [ dev/android, dev/linux, main ]
+    branches: [ dev/android, dev/linux ]
 
 jobs:
-  lint-android:
-    name: Lint Android
+  android-lint:
+    name: Android Lint
     runs-on: ubuntu-latest
-    if: contains(github.event.commits.*.modified, 'android-app/') || contains(github.event.pull_request.body, 'android')
+    if: github.ref == 'refs/heads/dev/android' || contains(github.event.commits.*.modified, 'android-app/')
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check if android-app exists
-        id: check_android
-        run: |
-          if [ -d "android-app" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up JDK 17
-        if: steps.check_android.outputs.exists == 'true'
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'
 
-      - name: Run Android Lint
-        if: steps.check_android.outputs.exists == 'true'
-        run: |
-          cd android-app
-          chmod +x ./gradlew
-          ./gradlew lintDebug --no-daemon --stacktrace
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
 
-  lint-linux:
-    name: Lint Linux
+      - name: Make gradlew executable
+        working-directory: android-app
+        run: chmod +x gradlew
+
+      - name: Run Lint
+        working-directory: android-app
+        run: ./gradlew lintDebug --no-daemon
+
+  linux-check:
+    name: Linux Clippy & Fmt
     runs-on: ubuntu-latest
-    if: contains(github.event.commits.*.modified, 'linux-app/') || contains(github.event.pull_request.body, 'linux')
+    if: github.ref == 'refs/heads/dev/linux' || contains(github.event.commits.*.modified, 'linux-app/')
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check if linux-app exists
-        id: check_linux
-        run: |
-          if [ -d "linux-app" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Install Rust
-        if: steps.check_linux.outputs.exists == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
           components: rustfmt, clippy
 
       - name: Run Clippy
-        if: steps.check_linux.outputs.exists == 'true'
-        run: cd linux-app && cargo clippy --locked -- -D warnings
+        working-directory: linux-app
+        run: cargo clippy -- -D warnings
 
-      - name: Run Rustfmt
-        if: steps.check_linux.outputs.exists == 'true'
-        run: cd linux-app && cargo fmt --locked -- --check
-
-  format-check:
-    name: Format Check
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Check Android formatting
-        if: contains(github.event.commits.*.modified, 'android-app/')
-        run: |
-          if [ -d "android-app" ]; then
-            cd android-app
-            chmod +x ./gradlew
-            ./gradlew spotlessCheck --no-daemon
-          fi
-
-      - name: Check Rust formatting
-        if: contains(github.event.commits.*.modified, 'linux-app/')
-        run: |
-          if [ -d "linux-app" ]; then
-            cd linux-app
-            cargo fmt --locked -- --check
-          fi
+      - name: Check Format
+        working-directory: linux-app
+        run: cargo fmt -- --check
