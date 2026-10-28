@@ -9,34 +9,31 @@ if "%OS%"=="Windows_NT" (
 @rem Set the display message
 set DISPLAY_MSG=Gradle wrapper
 
+@rem Resolve the project home directory
+set DIRNAME=%~dp0
+if "%DIRNAME%" == "" set DIRNAME=.
+set APP_HOME=%DIRNAME%
+
 @rem The following code is used to try to find a Java executable
 @rem in the same directory as the gradlew.bat file or in the PATH
 
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
+
+if defined JAVA_EXE goto execute
+if defined JAVA_HOME goto findJavaFromJavaHome
+
 set JAVA_EXE=java.exe
 %JAVA_EXE% -version >NUL 2>&1
 if %ERRORLEVEL% equ 0 goto execute
 
-set JAVA_EXE=..\bin\java.exe
+goto noJavaFound
+
+:findJavaFromJavaHome
+set JAVA_EXE=%JAVA_HOME%\bin\java.exe
 %JAVA_EXE% -version >NUL 2>&1
 if %ERRORLEVEL% equ 0 goto execute
 
-set JAVA_EXE=..\..\bin\java.exe
-%JAVA_EXE% -version >NUL 2>&1
-if %ERRORLEVEL% equ 0 goto execute
-
-set JAVA_EXE=..\..\..\bin\java.exe
-%JAVA_EXE% -version >NUL 2>&1
-if %ERRORLEVEL% equ 0 goto execute
-
-set JAVA_EXE=..\..\..\..\bin\java.exe
-%JAVA_EXE% -version >NUL 2>&1
-if %ERRORLEVEL% equ 0 goto execute
-
-:findJavaFromPath
-set JAVA_EXE=java.exe
-%JAVA_EXE% -version >NUL 2>&1
-if %ERRORLEVEL% equ 0 goto execute
+goto noJavaFound
 
 :noJavaFound
 @rem If we reach here, no Java executable was found
