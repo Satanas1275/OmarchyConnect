@@ -16,7 +16,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check if android-app exists
+        id: check_android
+        run: |
+          if [ -d "android-app" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up JDK 17
+        if: steps.check_android.outputs.exists == 'true'
         uses: actions/setup-java@v5
         with:
           java-version: '17'
@@ -24,6 +34,7 @@ jobs:
           cache: 'gradle'
 
       - name: Run Android Lint
+        if: steps.check_android.outputs.exists == 'true'
         run: |
           cd android-app
           chmod +x ./gradlew
@@ -38,16 +49,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check if linux-app exists
+        id: check_linux
+        run: |
+          if [ -d "linux-app" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install Rust
+        if: steps.check_linux.outputs.exists == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
           components: rustfmt, clippy
 
       - name: Run Clippy
+        if: steps.check_linux.outputs.exists == 'true'
         run: cd linux-app && cargo clippy --locked -- -D warnings
 
       - name: Run Rustfmt
+        if: steps.check_linux.outputs.exists == 'true'
         run: cd linux-app && cargo fmt --locked -- --check
 
   format-check:
@@ -61,12 +84,16 @@ jobs:
       - name: Check Android formatting
         if: contains(github.event.commits.*.modified, 'android-app/')
         run: |
-          cd android-app
-          chmod +x ./gradlew
-          ./gradlew spotlessCheck --no-daemon
+          if [ -d "android-app" ]; then
+            cd android-app
+            chmod +x ./gradlew
+            ./gradlew spotlessCheck --no-daemon
+          fi
 
       - name: Check Rust formatting
         if: contains(github.event.commits.*.modified, 'linux-app/')
         run: |
-          cd linux-app
-          cargo fmt --locked -- --check
+          if [ -d "linux-app" ]; then
+            cd linux-app
+            cargo fmt --locked -- --check
+          fi

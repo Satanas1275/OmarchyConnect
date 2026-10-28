@@ -20,26 +20,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check if android-app exists
+        id: check_android
+        run: |
+          if [ -d "android-app" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up JDK 17
+        if: steps.check_android.outputs.exists == 'true'
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'
 
       - name: Set up Android SDK
+        if: steps.check_android.outputs.exists == 'true'
         uses: android-actions/setup-android@v3
 
       - name: Grant execute permission for gradlew
+        if: steps.check_android.outputs.exists == 'true'
         run: chmod +x ./android-app/gradlew
 
       - name: Build with Gradle
+        if: steps.check_android.outputs.exists == 'true'
         run: cd android-app && ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Build Release APK
+        if: steps.check_android.outputs.exists == 'true'
         run: cd android-app && ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload Debug APK
+        if: steps.check_android.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: OmarchyConnect-Android-Debug
@@ -47,6 +61,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Release APK
+        if: steps.check_android.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: OmarchyConnect-Android-Release

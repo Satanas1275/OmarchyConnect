@@ -3,8 +3,14 @@ name: Build All
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'android-app/**'
+      - 'linux-app/**'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'android-app/**'
+      - 'linux-app/**'
   workflow_dispatch:
 
 concurrency:
@@ -30,19 +36,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check if artifacts exist
+        id: check_artifacts
+        run: |
+          ANDROID_EXISTS=$(ls android-app/app/build/outputs/apk/release/*.apk 2>/dev/null | wc -l)
+          LINUX_EXISTS=$(ls linux-app/target/release/omarchy-connect 2>/dev/null | wc -l)
+          
+          if [ $ANDROID_EXISTS -gt 0 ] && [ $LINUX_EXISTS -gt 0 ]; then
+            echo "both_exist=true" >> $GITHUB_OUTPUT
+          else
+            echo "both_exist=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Download Android APK
+        if: steps.check_artifacts.outputs.both_exist == 'true'
         uses: actions/download-artifact@v4
         with:
           name: OmarchyConnect-Android-Release
           path: release/android
 
       - name: Download Linux Binary
+        if: steps.check_artifacts.outputs.both_exist == 'true'
         uses: actions/download-artifact@v4
         with:
           name: OmarchyConnect-Linux-Release
           path: release/linux
 
       - name: Create Release
+        if: steps.check_artifacts.outputs.both_exist == 'true'
         uses: softprops/action-gh-release@v2
         with:
           name: OmarchyConnect v${{ github.run_number }}
