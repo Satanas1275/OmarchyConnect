@@ -1,0 +1,15 @@
+# Normalisation des fins de ligne (Windows + autocrlf ne doivent JAMAIS
+# casser le CI : gradlew en CRLF = "bad interpreter" sur Linux)
+* text=auto
+
+# Scripts : EOL imposés pour que le wrapper fonctionne partout
+gradlew text eol=lf
+*.bat text eol=crlf
+
+# Binaires : jamais de conversion
+*.jar binary
+*.png binary
+*.jpg binary
+*.webp binary
+*.keystore binary
+*.jks binary
