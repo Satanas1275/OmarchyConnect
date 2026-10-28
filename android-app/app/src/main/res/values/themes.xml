@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.OmarchyConnect" parent="Theme.AppCompat.Light.DarkActionBar" />
+    <style name="Theme.OmarchyConnect" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/oc_background</item>
+        <item name="android:statusBarColor">@color/oc_background</item>
+        <item name="android:navigationBarColor">@color/oc_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
 </resources>

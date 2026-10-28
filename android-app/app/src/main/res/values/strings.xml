@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OmarchyConnect</string>
+    <string name="notif_forwarder_label">Forward notifications to PC</string>
+
+    <string name="notif_channel_link">Connection</string>
+    <string name="notif_channel_link_desc">Keeps the link with your Omarchy PC alive</string>
+</resources>

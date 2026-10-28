@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="oc_background">#0E1116</color>
+    <color name="oc_panel">#10151C</color>
+    <color name="oc_accent">#A8E6CF</color>
+    <color name="ic_launcher_background">#0E1116</color>
+</resources>
