@@ -1,0 +1,68 @@
+name: Linux Build
+
+on:
+  push:
+    branches: [ dev/linux, main ]
+    paths:
+      - 'linux-app/**'
+  pull_request:
+    branches: [ dev/linux, main ]
+    paths:
+      - 'linux-app/**'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux App
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libbluetooth-dev libdbus-1-dev pkg-config
+
+      - name: Cache Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build in debug mode
+        run: cd linux-app && cargo build --locked
+
+      - name: Build in release mode
+        run: cd linux-app && cargo build --locked --release
+
+      - name: Run tests
+        run: cd linux-app && cargo test --locked
+
+      - name: Upload Debug Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmarchyConnect-Linux-Debug
+          path: linux-app/target/debug/omarchy-connect
+          retention-days: 30
+
+      - name: Upload Release Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmarchyConnect-Linux-Release
+          path: linux-app/target/release/omarchy-connect
+          retention-days: 30

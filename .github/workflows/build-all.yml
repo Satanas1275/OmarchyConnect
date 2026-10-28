@@ -1,0 +1,74 @@
+name: Build All
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: build-all-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-build:
+    name: Android Build
+    uses: ./.github/workflows/android-build.yml
+
+  linux-build:
+    name: Linux Build
+    uses: ./.github/workflows/linux-build.yml
+
+  release:
+    name: Create Release
+    needs: [android-build, linux-build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: OmarchyConnect-Android-Release
+          path: release/android
+
+      - name: Download Linux Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: OmarchyConnect-Linux-Release
+          path: release/linux
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: OmarchyConnect v${{ github.run_number }}
+          tag_name: v${{ github.run_number }}
+          body: |
+            ## OmarchyConnect Release
+            
+            ### Android
+            - Debug and Release APKs built
+            - Supports Android 7.0+ (API 24+)
+            
+            ### Linux
+            - Built for x86_64
+            - Supports Bluetooth, WiFi, and Internet connections
+            
+            ### Features
+            - Notifications sync
+            - File transfer
+            - Clipboard sync
+            - Command execution
+            - Keyboard/Mouse input
+            - Theme synchronization
+          files: |
+            release/android/*.apk
+            release/linux/omarchy-connect
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

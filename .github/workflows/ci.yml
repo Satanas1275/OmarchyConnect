@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [ dev/android, dev/linux, main ]
+  pull_request:
+    branches: [ dev/android, dev/linux, main ]
+
+jobs:
+  lint-android:
+    name: Lint Android
+    runs-on: ubuntu-latest
+    if: contains(github.event.commits.*.modified, 'android-app/') || contains(github.event.pull_request.body, 'android')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Run Android Lint
+        run: |
+          cd android-app
+          chmod +x ./gradlew
+          ./gradlew lintDebug --no-daemon --stacktrace
+
+  lint-linux:
+    name: Lint Linux
+    runs-on: ubuntu-latest
+    if: contains(github.event.commits.*.modified, 'linux-app/') || contains(github.event.pull_request.body, 'linux')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Run Clippy
+        run: cd linux-app && cargo clippy --locked -- -D warnings
+
+      - name: Run Rustfmt
+        run: cd linux-app && cargo fmt --locked -- --check
+
+  format-check:
+    name: Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Android formatting
+        if: contains(github.event.commits.*.modified, 'android-app/')
+        run: |
+          cd android-app
+          chmod +x ./gradlew
+          ./gradlew spotlessCheck --no-daemon
+
+      - name: Check Rust formatting
+        if: contains(github.event.commits.*.modified, 'linux-app/')
+        run: |
+          cd linux-app
+          cargo fmt --locked -- --check
