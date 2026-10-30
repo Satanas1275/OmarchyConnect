@@ -61,7 +61,7 @@ private val ocTypography = Typography(
 )
 
 /**
- * Thème Omarchy pour Compose : fond sombre, peu (voire pas) d'arrondis,
+ * Thème Omarchy pour Compose : fond sombre, **aucun arrondi** (angles droits),
  * contours colorés, police monospace. Les couleurs sont recalculées à chaque
  * synchro de thème depuis le PC.
  */

@@ -10,7 +10,7 @@ class OmarchyApp : Application() {
         super.onCreate()
         Prefs.init(this)
         Link.init(this)
-        if (Prefs.paired && !Link.demo.value) {
+        if (Prefs.paired) {
             // Android 12+ interdit de démarrer un service de premier plan en
             // arrière-plan : on laisse le lien se relancer au prochain lancement.
             try {

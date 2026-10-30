@@ -7,7 +7,9 @@
 //! omarchy-connect --bind 127.0.0.1 --port 8765
 //! ```
 
+mod bt;
 mod config;
+mod desktop;
 mod protocol;
 mod relay;
 mod server;
@@ -45,14 +47,18 @@ struct Args {
     #[arg(long)]
     upload_dir: Option<PathBuf>,
 
-    /// URL du relais central (local par défaut ; le domaine public est
-    /// omarchy-connect.rocknite-studio.com, proxé vers ce PC).
-    #[arg(long, default_value = "http://127.0.0.1:6716")]
+    /// URL du relais central (public par défaut ; `http://127.0.0.1:6716`
+    /// pour le développement local).
+    #[arg(long, default_value = "https://omarchy-connect.rocknite-studio.com")]
     relay: String,
 
     /// Désactive le client de relais (mode direct LAN uniquement)
     #[arg(long)]
     no_relay: bool,
+
+    /// Désactive le transport Bluetooth (profil SPP / RFCOMM)
+    #[arg(long)]
+    no_bt: bool,
 }
 
 fn generate_code() -> String {
@@ -64,9 +70,8 @@ fn generate_code() -> String {
         .collect()
 }
 
-/// Identité stable du PC (annonce `hello.fp`).
-/// TODO: remplacer par le SHA-256 du SPKI du certificat TLS dès que le TLS
-/// direct sera branché (rustls) — voir pc-app/README.md.
+/// Empreinte stable du PC (annoncée dans `hello.fp` et `bt.accept`), lisible
+/// par le téléphone pour repérer un changement d'appareil.
 fn identity(state_dir: &PathBuf) -> Result<String> {
     let path = state_dir.join("identity");
     if let Ok(id) = std::fs::read_to_string(&path) {
@@ -126,6 +131,21 @@ async fn main() -> Result<()> {
         });
     }
 
+    // Transport Bluetooth classique (SPP/RFCOMM), sans compte ni serveur.
+    if !args.no_bt {
+        let bt_state = state.clone();
+        let bt_dir = config_dir.clone();
+        tokio::spawn(async move {
+            bt::run(bt_state, bt_dir).await;
+        });
+    }
+
+    // Presse-papiers PC -> téléphone en temps réel.
+    let clipboard_state = state.clone();
+    tokio::spawn(async move {
+        desktop::clipboard_watch(clipboard_state).await;
+    });
+
     println!("┌───────────────────────────────────────────────┐");
     println!("│  OmarchyConnect — omarchy desktop daemon     │");
     println!("├───────────────────────────────────────────────┤");
@@ -139,6 +159,7 @@ async fn main() -> Result<()> {
         println!("│  lan code  {:^34} │", code);
         println!("│  (l'appairage relais affiche son code plus bas) │");
     }
+    println!("│  bluetooth {:<34} │", if args.no_bt { "désactivé" } else { "SPP / RFCOMM (canal 3)" });
     println!("│  files     {:<34} │", truncate(&upload_dir.display().to_string(), 34));
     println!("│  commands  {:<34} │", state.commands.len());
     println!("└───────────────────────────────────────────────┘");

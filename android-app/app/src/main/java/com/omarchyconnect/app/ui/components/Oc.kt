@@ -48,7 +48,7 @@ import com.omarchyconnect.app.core.LogLine
 import com.omarchyconnect.app.ui.theme.Mono
 import com.omarchyconnect.app.ui.theme.ocColor
 
-/** Conteneur "carte" : fond de surface, contour fin 1dp, presque pas d'arrondi. */
+/** Conteneur "carte" : fond de surface, contour fin 1dp, angles droits. */
 @Composable
 fun Panel(
     modifier: Modifier = Modifier,

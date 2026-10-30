@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.omarchyconnect.app.core.DeviceIdentity
 import com.omarchyconnect.app.core.Link
+import com.omarchyconnect.app.core.LinkStatus
 import com.omarchyconnect.app.ui.Route
 import com.omarchyconnect.app.ui.components.Avatar
 import com.omarchyconnect.app.ui.components.OcButton
@@ -32,7 +33,7 @@ fun ProfileScreen(onNavigate: (Route) -> Unit) {
     val user by Link.user.collectAsState()
     val since by Link.userSince.collectAsState()
     val domain by Link.domain.collectAsState()
-    val demo by Link.demo.collectAsState()
+    val status by Link.status.collectAsState()
 
     Column(
         Modifier
@@ -64,7 +65,7 @@ fun ProfileScreen(onNavigate: (Route) -> Unit) {
             Info("android", "API ${android.os.Build.VERSION.SDK_INT}")
             Info("device id", rememberDeviceId())
             Info("key fp", DeviceIdentity.fingerprint())
-            Info("paired", if (demo) "demo mode" else domain.ifBlank { "no" })
+            Info("paired", domain.ifBlank { "no" })
         }
 
         Spacer(Modifier.height(16.dp))
@@ -78,15 +79,11 @@ fun ProfileScreen(onNavigate: (Route) -> Unit) {
             )
             Spacer(Modifier.height(10.dp))
             OcButton(
-                text = if (demo) "Exit demo & pair a PC" else "Disconnect",
-                accent = demo,
+                text = if (status == LinkStatus.ONLINE) "Disconnect" else "Pair a PC",
+                accent = status != LinkStatus.ONLINE,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
-                    if (demo) {
-                        Link.forget()
-                    } else {
-                        Link.disconnect("profile")
-                    }
+                    if (status == LinkStatus.ONLINE) Link.disconnect("profile")
                     onNavigate(Route.PAIR)
                 }
             )

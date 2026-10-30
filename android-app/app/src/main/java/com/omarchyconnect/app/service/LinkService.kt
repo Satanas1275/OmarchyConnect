@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -14,6 +15,12 @@ import com.omarchyconnect.app.R
 import com.omarchyconnect.app.core.Link
 import com.omarchyconnect.app.core.LinkStatus
 import com.omarchyconnect.app.core.Prefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Service de premier plan :
@@ -42,6 +49,8 @@ class LinkService : Service() {
         }
     }
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var clipboardWatch: Job? = null
     private var clipboard: ClipboardManager? = null
     private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
         val text = clipboard?.primaryClip
@@ -60,8 +69,9 @@ class LinkService : Service() {
         ensureChannel()
         startForegroundCompat(buildNotification())
         registerClipboard()
+        observeRemoteClipboard()
 
-        if (Prefs.paired && !Link.demo.value) Link.connect()
+        if (Prefs.paired) Link.connect()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -86,7 +96,6 @@ class LinkService : Service() {
     private fun buildNotification(): Notification {
         val status = Link.status.value
         val text = when {
-            Link.demo.value -> "Demo mode"
             status == LinkStatus.ONLINE -> "Linked to ${Link.pcName.value.ifBlank { Link.domain.value }}"
             status == LinkStatus.PAIRING -> "Pairing…"
             status == LinkStatus.CONNECTING -> "Connecting to ${Link.domain.value}…"
@@ -127,8 +136,29 @@ class LinkService : Service() {
         clipboard?.addPrimaryClipChangedListener(clipListener)
     }
 
+    /**
+     * Applique le presse-papiers reçu du PC (trame `clipboard`).
+     * [Link.sendClipboard] ignore le texte déjà connu, donc pas de boucle.
+     */
+    private fun observeRemoteClipboard() {
+        clipboardWatch?.cancel()
+        clipboardWatch = scope.launch {
+            Link.lastClipboard.collect { text ->
+                if (text.isBlank() || !Prefs.clipboardSync) return@collect
+                val current = clipboard?.primaryClip
+                    ?.takeIf { it.itemCount > 0 }
+                    ?.getItemAt(0)
+                    ?.coerceToText(applicationContext)
+                    ?.toString()
+                if (text == current) return@collect
+                clipboard?.setPrimaryClip(ClipData.newPlainText("OmarchyConnect", text))
+            }
+        }
+    }
+
     override fun onDestroy() {
         clipboard?.removePrimaryClipChangedListener(clipListener)
+        scope.cancel()
         super.onDestroy()
     }
 

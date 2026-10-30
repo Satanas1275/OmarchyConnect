@@ -34,7 +34,9 @@ async fn main() -> Result<()> {
 
     // Identité téléphone éphémère (comme un appairage neuf côté Android).
     let mut rng = rand::thread_rng();
-    let phone_id: String = (0..16).map(|_| format!("{:02x}", rng.gen::<u8>())).collect();
+    let phone_id: String = (0..16)
+        .map(|_| format!("{:02x}", rng.gen::<u8>()))
+        .collect();
     let signing = SigningKey::random(&mut rng);
     let sk = SecretKey::from_slice(&signing.to_bytes())?;
     let phone_pub = b64(sk.public_key().to_encoded_point(false).as_bytes());
@@ -60,14 +62,23 @@ async fn main() -> Result<()> {
         .or_else(|| v["pc_pubkey"].as_str())
         .context("pc_pubkey manquant")?
         .to_string();
-    println!("pc        = {} ({})", v["pc_name"].as_str().unwrap_or("?"), pc_id);
+    println!(
+        "pc        = {} ({})",
+        v["pc_name"].as_str().unwrap_or("?"),
+        pc_id
+    );
 
     // 2. Clé de session E2E = HKDF(ECDH(...)).
     let k = derive(&signing, &pc_pub)?;
     println!("K         = {}…", hex::encode(&k[..6]));
 
     // 3. Finalisation : le serveur enregistre le téléphone et crée la paire.
-    let v: Value = post(&http, "/api/pair/finalize", &json!({ "phone_id": phone_id })).await?;
+    let v: Value = post(
+        &http,
+        "/api/pair/finalize",
+        &json!({ "phone_id": phone_id }),
+    )
+    .await?;
     if v["pc_id"] != json!(pc_id) {
         bail!("finalize incohérent : {v}");
     }
@@ -99,27 +110,70 @@ async fn main() -> Result<()> {
         json!({ "v": 1, "t": "commands.list" }),
         json!({ "v": 1, "t": "command.run", "id": "hello" }),
     ] {
-        let payload = encrypt(&k, &inner.to_string())?;
-        sink.send(Message::Text(
-            json!({ "t": "relay", "to": pc_id, "payload": payload }).to_string(),
-        ))
-        .await?;
-        loop {
-            let reply = recv(&mut stream).await?;
-            match reply["t"].as_str() {
-                Some("relay") => {
-                    let p = reply["payload"].as_str().unwrap_or_default();
-                    println!("◄ {}", decrypt(&k, p)?);
-                    break;
-                }
-                Some(other) => println!("(trame : {other}) {reply}"),
-                None => break,
+        let reply = send_app(&mut sink, &mut stream, &k, &pc_id, inner).await?;
+        println!("◄ {reply}");
+    }
+
+    // 6. Transfert de fichier par blocs (assemblage + écriture côté PC).
+    let id = "fake-transfer";
+    let content = b"omarchy-connect e2e file\n";
+    for inner in [
+        json!({ "v": 1, "t": "file.begin", "id": id, "name": "oc-test.txt" }),
+        json!({ "v": 1, "t": "file.chunk", "id": id, "data": b64(content) }),
+        json!({
+            "v": 1, "t": "file.end", "id": id, "name": "oc-test.txt",
+            "size": content.len(),
+        }),
+    ] {
+        let is_last = inner["t"] == "file.end";
+        if is_last {
+            let reply = send_app(&mut sink, &mut stream, &k, &pc_id, inner).await?;
+            println!("◄ {reply}");
+            if reply["ok"] != true {
+                bail!("transfert de fichier refusé : {reply}");
             }
+        } else {
+            let payload = encrypt(&k, &inner.to_string())?;
+            sink.send(Message::Text(
+                json!({ "t": "relay", "to": pc_id, "payload": payload }).to_string(),
+            ))
+            .await?;
         }
     }
 
-    println!("✔ protocole complet validé (pairing + auth + E2E + dispatch)");
+    println!("✔ protocole complet validé (pairing + auth + E2E + dispatch + fichier)");
     Ok(())
+}
+
+/// Envoie une frame applicative chiffrée et renvoie la réponse déchiffrée.
+async fn send_app<S, R>(
+    sink: &mut S,
+    stream: &mut R,
+    k: &[u8; 32],
+    to: &str,
+    inner: Value,
+) -> Result<Value>
+where
+    S: SinkExt<Message> + Unpin,
+    R: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,
+{
+    let payload = encrypt(k, &inner.to_string())?;
+    sink.send(Message::Text(
+        json!({ "t": "relay", "to": to, "payload": payload }).to_string(),
+    ))
+    .await
+    .map_err(|_| anyhow::anyhow!("envoi WebSocket échoué"))?;
+    loop {
+        let reply = recv(stream).await?;
+        match reply["t"].as_str() {
+            Some("relay") => {
+                let p = reply["payload"].as_str().unwrap_or_default();
+                return Ok(serde_json::from_str(&decrypt(k, p)?)?);
+            }
+            Some(other) => println!("(trame : {other}) {reply}"),
+            None => bail!("réponse sans type : {reply}"),
+        }
+    }
 }
 
 // ------------------------------------------------------------------ helpers
@@ -135,8 +189,7 @@ async fn post(http: &reqwest::Client, path: &str, body: &Value) -> Result<Value>
 }
 
 async fn recv(
-    stream: &mut (impl StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
-              + Unpin),
+    stream: &mut (impl StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin),
 ) -> Result<Value> {
     let item = tokio::time::timeout(std::time::Duration::from_secs(15), stream.next())
         .await

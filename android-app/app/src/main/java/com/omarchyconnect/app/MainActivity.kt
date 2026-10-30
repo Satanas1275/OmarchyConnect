@@ -3,6 +3,7 @@ package com.omarchyconnect.app
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -22,15 +23,46 @@ class MainActivity : ComponentActivity() {
             if (!granted) Link.log("warn", "POST_NOTIFICATIONS denied (foreground only)")
         }
 
+    private val bluetoothPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val granted = result[Manifest.permission.BLUETOOTH_CONNECT] == true
+            Link.log(
+                if (granted) "ok" else "warn",
+                if (granted) "bluetooth permission granted" else "bluetooth permission denied"
+            )
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Les barres système laissent voir le fond Compose, qui suit le thème
+        // Omarchy synchronisé (sinon un liseré reste sur la palette par défaut).
+        @Suppress("DEPRECATION")
+        window.statusBarColor = Color.TRANSPARENT
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = Color.TRANSPARENT
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            bluetoothPermissions.launch(
+                arrayOf(
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN
+                )
+            )
         }
 
         handleShare(intent)

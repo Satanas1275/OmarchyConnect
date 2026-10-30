@@ -32,6 +32,7 @@ import com.omarchyconnect.app.core.Prefs
 import com.omarchyconnect.app.core.Protocol
 import com.omarchyconnect.app.ui.Route
 import com.omarchyconnect.app.ui.components.OcButton
+import com.omarchyconnect.app.ui.components.OcTextField
 import com.omarchyconnect.app.ui.components.OcToggle
 import com.omarchyconnect.app.ui.components.Panel
 import com.omarchyconnect.app.ui.components.SectionLabel
@@ -45,13 +46,16 @@ fun SettingsScreen(onNavigate: (Route) -> Unit) {
     val status by Link.status.collectAsState()
     val domain by Link.domain.collectAsState()
     val themeSynced by Link.theme.collectAsState()
-    val demo by Link.demo.collectAsState()
     val pcName by Link.pcName.collectAsState()
+    val transport by Link.transport.collectAsState()
+    val relayBase by Link.relayBase.collectAsState()
+    val btDevices by Link.btDevices.collectAsState()
 
     var clipboardSync by remember { mutableStateOf(Prefs.clipboardSync) }
     var forwardNotifications by remember { mutableStateOf(Prefs.forwardNotifications) }
     var themeSync by remember { mutableStateOf(Prefs.themeSync) }
     var remoteInput by remember { mutableStateOf(Prefs.remoteInput) }
+    var endpoint by remember { mutableStateOf(relayBase) }
 
     val listenerEnabled = remember {
         Settings.Secure.getString(
@@ -129,7 +133,7 @@ fun SettingsScreen(onNavigate: (Route) -> Unit) {
         Panel {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = if (domain.isBlank()) "no domain" else domain,
+                    text = if (domain.isBlank()) "no endpoint" else domain,
                     style = MaterialTheme.typography.bodyLarge,
                     color = scheme.onSurface,
                     modifier = Modifier.weight(1f)
@@ -144,6 +148,27 @@ fun SettingsScreen(onNavigate: (Route) -> Unit) {
                     }
                 )
             }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = transport,
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(10.dp))
+            SectionLabel("relay endpoint")
+            Spacer(Modifier.height(6.dp))
+            OcTextField(
+                value = endpoint,
+                onValueChange = { endpoint = it },
+                placeholder = Prefs.DEFAULT_RELAY
+            )
+            Spacer(Modifier.height(8.dp))
+            OcButton(
+                text = "save endpoint",
+                height = 38.dp,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { endpoint = Link.setEndpoint(endpoint) }
+            )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
                 OcButton(
@@ -165,6 +190,30 @@ fun SettingsScreen(onNavigate: (Route) -> Unit) {
                         onNavigate(Route.WELCOME)
                     }
                 )
+            }
+            Spacer(Modifier.height(10.dp))
+            OcButton(
+                text = "connect via Bluetooth",
+                height = 40.dp,
+                accent = status != LinkStatus.ONLINE && btDevices.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { Link.connectBluetooth() }
+            )
+            if (btDevices.isEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "no bonded Bluetooth device — pair the PC in Android settings",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant
+                )
+            } else {
+                btDevices.forEach { d ->
+                    Text(
+                        text = "> $d",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
@@ -196,8 +245,10 @@ fun SettingsScreen(onNavigate: (Route) -> Unit) {
         SectionLabel("security")
         Spacer(Modifier.height(8.dp))
         Panel {
-            InfoLine("transport", "wss:// only · cleartext disabled")
+            InfoLine("transport", "relay wss:// · bluetooth RFCOMM/SPP")
             InfoLine("identity", "EC P-256 in Android Keystore")
+            InfoLine("e2e", "ECDH P-256 + HKDF + AES-256-GCM")
+            InfoLine("relay", "signed nonce · opaque payloads")
             InfoLine("key fp", remember { DeviceIdentity.fingerprint() })
             InfoLine("backup", "disabled (no cloud extraction)")
             InfoLine("telemetry", "none · no analytics, no 3rd party sdk")
@@ -208,8 +259,8 @@ fun SettingsScreen(onNavigate: (Route) -> Unit) {
         Spacer(Modifier.height(8.dp))
         Panel {
             InfoLine("app", "OmarchyConnect 1.0.0")
-            InfoLine("proto", "v1 · json over wss")
-            InfoLine("mode", if (demo) "demo (no PC)" else "linked to ${pcName.ifBlank { domain }}")
+            InfoLine("proto", "v1 · E2E json")
+            InfoLine("mode", if (status == LinkStatus.ONLINE) "linked to ${pcName.ifBlank { domain }}" else "offline")
             InfoLine("build", "android · kotlin · compose")
         }
 

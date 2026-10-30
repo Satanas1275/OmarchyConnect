@@ -39,7 +39,7 @@ use crate::server::{dispatch, AppState};
 // ---------------------------------------------------------------- identité
 
 /// Identité relais du PC : `device_id` + clé privée EC P-256 (**locale**).
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Identity {
     pub device_id: String,
     /// 32 octets hex. Ne quitte jamais cette machine.
@@ -144,7 +144,7 @@ fn write_private(path: &Path, content: &str) -> Result<()> {
 
 // ---------------------------------------------------------------- crypto E2E
 
-fn encrypt(k: &[u8; 32], plaintext: &str) -> Result<String> {
+pub(crate) fn encrypt(k: &[u8; 32], plaintext: &str) -> Result<String> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(k));
     let mut iv = [0u8; 12];
     rand::thread_rng().fill(&mut iv);
@@ -157,7 +157,7 @@ fn encrypt(k: &[u8; 32], plaintext: &str) -> Result<String> {
     Ok(b64(&out))
 }
 
-fn decrypt(k: &[u8; 32], payload: &str) -> Result<String> {
+pub(crate) fn decrypt(k: &[u8; 32], payload: &str) -> Result<String> {
     let data = b64decode(payload)?;
     if data.len() < 13 {
         bail!("payload trop court");
@@ -334,6 +334,11 @@ async fn session(
     }
     info!("connecté et authentifié sur le relais");
 
+    // Connexion sortante vers le téléphone pour les frames poussées par le PC
+    // (presse-papiers en temps réel). Le contenu est chiffré ici, donc le
+    // relais ne le voit jamais en clair.
+    let mut pushes = state.register_sink();
+
     // 3. Rattrapage d'état (si la dernière séquence appairage a été manquée,
     //    ou si le serveur a perdu ses paires).
     match signed_status(http, base, ident).await {
@@ -388,6 +393,24 @@ async fn session(
                     state, ident, config_dir,
                     &mut sink, v, &mut last_announce,
                 ).await?;
+            }
+            pushed = pushes.recv() => {
+                let Some(plain) = pushed else { bail!("canal de diffusion fermé") };
+                // Sans paire, il n'y a personne à qui pousser la frame.
+                if let Some(pair) = load_pair(config_dir) {
+                    let k = hex_decode(&pair.k).map_err(|_| anyhow!("clé locale illisible"))?;
+                    let mut k32 = [0u8; 32];
+                    if k.len() != 32 {
+                        bail!("clé de session locale invalide");
+                    }
+                    k32.copy_from_slice(&k);
+                    let enc = encrypt(&k32, &plain)?;
+                    sink.send(Message::Text(
+                        json!({ "t": "relay", "to": pair.peer, "payload": enc }).to_string(),
+                    ))
+                    .await
+                    .map_err(|_| anyhow!("envoi WebSocket échoué"))?;
+                }
             }
             _ = announce_tick.tick() => {
                 if load_pair(config_dir).is_none() {

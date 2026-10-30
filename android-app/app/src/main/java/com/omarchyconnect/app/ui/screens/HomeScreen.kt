@@ -50,7 +50,6 @@ fun HomeScreen(onNavigate: (Route) -> Unit) {
     val context = LocalContext.current
 
     val status by Link.status.collectAsState()
-    val demo by Link.demo.collectAsState()
     val user by Link.user.collectAsState()
     val pcName by Link.pcName.collectAsState()
     val domain by Link.domain.collectAsState()
@@ -93,7 +92,6 @@ fun HomeScreen(onNavigate: (Route) -> Unit) {
         Panel(accent = status == LinkStatus.ONLINE) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val (dot, label) = when {
-                    demo -> scheme.primary to "demo"
                     status == LinkStatus.ONLINE -> scheme.primary to "linked"
                     status == LinkStatus.PAIRING -> levelColor("warn") to "pairing…"
                     status == LinkStatus.CONNECTING -> levelColor("warn") to "connecting…"
@@ -118,9 +116,9 @@ fun HomeScreen(onNavigate: (Route) -> Unit) {
             }
 
             Spacer(Modifier.height(10.dp))
-            KeyValue("pc", pcName.ifBlank { if (demo) "arch-pc (demo)" else "—" })
-            KeyValue("host", if (demo) "demo.local" else domain.ifBlank { "—" })
-            KeyValue("transport", if (demo) "local" else "wss / tls1.3")
+            KeyValue("pc", pcName.ifBlank { "—" })
+            KeyValue("host", domain.ifBlank { "—" })
+            KeyValue("transport", Link.transport.value)
             KeyValue("forward", "notifications · clipboard · input")
         }
 

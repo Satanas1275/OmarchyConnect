@@ -39,7 +39,7 @@ fun CommandsScreen() {
     val scheme = MaterialTheme.colorScheme
     val commands by Link.commands.collectAsState()
     val result by Link.lastResult.collectAsState()
-    val demo by Link.demo.collectAsState()
+    val status by Link.status.collectAsState()
 
     Column(
         Modifier
@@ -55,8 +55,9 @@ fun CommandsScreen() {
                     color = scheme.onBackground
                 )
                 Text(
-                    text = if (demo) "demo list · register real ones on the PC"
-                    else "${commands.size} registered on ${Link.pcName.value.ifBlank { "the PC" }}",
+                    text = if (status == com.omarchyconnect.app.core.LinkStatus.ONLINE)
+                        "${commands.size} registered on ${Link.pcName.value.ifBlank { "the PC" }}"
+                    else "offline · connect to load the commands registered on the PC",
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant
                 )

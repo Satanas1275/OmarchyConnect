@@ -3,48 +3,64 @@
 KDE Connect, mais pour **Omarchy** : ton téléphone (Android/Kotlin) pilote ton PC
 (Arch + Omarchy, daemon Rust) — notifications, fichiers, presse-papiers en temps
 réel, commandes jouables et souris/clavier à distance, sur un canal unique
-chiffré.
+chiffré de bout en bout.
 
 ```
-├── android-app/     app Android (Kotlin, Jetpack Compose)  ← priorité actuelle
+├── android-app/     app Android (Kotlin, Jetpack Compose)
 ├── pc-app/          daemon Rust pour Arch/Omarchy
-├── PROTOCOL.md      schéma des trames partagé par les deux
+├── server/          relais central Rust (WebSocket + appairage)
+├── PROTOCOL.md      schéma des trames partagé par les trois
 └── .github/         CI (build APK à chaque push sur dev/android)
 ```
 
 ## Fonctionnalités
 
-- **Notifications** du téléphone → bureau (NotificationListenerService côté Android)
-- **Fichiers** dans les deux sens (partage Android → PC, `Download/` côté téléphone)
-- **Presse-papiers temps réel** (option dans les réglages, service de premier plan)
-- **Commandes** : déclarées sur le PC, affichées sur le téléphone (nom +
-  description + bouton), exécutées **sur le PC**
-- **Souris + clavier** distants : l'un, l'autre ou les deux en même temps
+- **Notifications** du téléphone → bureau (NotificationListenerService)
+- **Fichiers** téléphone → PC par blocs chiffrés E2E (`file.begin/chunk/end`)
+- **Presse-papiers temps réel** dans les deux sens (`wl-paste` / `wl-copy`)
+- **Commandes** déclarées sur le PC, exécutées **sur le PC** (identifiant seul)
+- **Souris + clavier** distants : `uinput` pour la souris, `wtype` pour le clavier
 - **Thème synchronisé** avec Omarchy (couleurs poussées par le PC)
-- **Transports** : Wi-Fi / réseau / Internet via ton domaine (`wss://`),
-  Bluetooth prévu en couches basses (le protocole est indépendant du transport)
+- **Transports** :
+  - relais internet `wss://omarchy-connect.rocknite-studio.com` (le serveur ne
+    voit que des blobs chiffrés) ;
+  - **Bluetooth RFCOMM/SPP** en secours automatique, utilisable sans compte ni
+    serveur (« Continue without an account ») ;
+  - LAN direct `ws://<pc>:8765` pour le développement.
+
+## Modèle de sécurité
+
+- Chaque appareil a une clé **EC P-256** générée localement ; la clé privée n'est
+  **jamais** transmise (Keystore Android / `relay.json` en `0600`).
+- Le serveur ne stocke que les clés **publiques** SEC1 et ne connaît que la
+  topologie « qui est appairé avec qui ».
+- Appairage par **code à 8 caractères**, usage unique, TTL 180 s, puis
+  **ECDH P-256 + HKDF-SHA256** → clé AES-256-GCM connue des deux appareils seuls.
+- Requêtes sensibles signées **ECDSA/SHA-256** sur un nonce à usage unique (60 s).
+- `allowBackup=false`, cleartext désactivé (sauf loopback/émulateur), aucune
+  télémétrie.
+
+Détails complets : [PROTOCOL.md](PROTOCOL.md).
 
 ## Style
 
-Fidèle à Omarchy : fond sombre, **contours colorés**, arrondis minimes (3-4 dp),
-**JetBrains Mono** partout, accent menthe, rendu « terminal » pour le journal
-d'activité et les sorties de commandes.
+Fidèle à Omarchy : fond sombre, **contours colorés**, **aucun arrondi** (angles
+droits partout, y compris avatar et pastille d'état), **JetBrains Mono**,
+accent menthe, rendu « terminal » pour le journal et les sorties de commandes.
 
 ## Build
 
 ```bash
-# Android (JDK 17+)
-cd android-app && ./gradlew assembleDebug
+# Relais (Rust)
+cd server && cargo build --release
 
-# PC
+# Daemon PC (Rust)
 cd pc-app && cargo build --release
+
+# Android (JDK 17+ ; JDK 21 recommandé)
+cd android-app && ./gradlew assembleDebug
 ```
 
-## Sécurité
-
-- appairage par **code à usage unique** (30 s), clé EC P-256 non exportable dans
-  le Keystore Android, jeton de session chiffré au repos
-- `wss://` uniquement (cleartext désactivé), empreinte du PC vérifiée à chaque
-  connexion (détection de man-in-the-middle)
-- `allowBackup=false`, aucune télémétrie, aucun SDK tiers
-- détails : [PROTOCOL.md](PROTOCOL.md) et [android-app/README.md](android-app/README.md)
+Voir [android-app/README.md](android-app/README.md),
+[pc-app/README.md](pc-app/README.md) et [server/README.md](server/README.md)
+(déploiement du relais derrière Caddy/nginx) pour la configuration.

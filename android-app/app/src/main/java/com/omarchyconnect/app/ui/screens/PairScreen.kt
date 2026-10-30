@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import com.omarchyconnect.app.core.Link
 import com.omarchyconnect.app.core.LinkStatus
 import com.omarchyconnect.app.core.Prefs
-import com.omarchyconnect.app.core.Protocol
 import com.omarchyconnect.app.ui.components.OcButton
 import com.omarchyconnect.app.ui.components.OcTextField
 import com.omarchyconnect.app.ui.components.SectionLabel
@@ -36,16 +34,15 @@ import com.omarchyconnect.app.ui.components.SectionLabel
 @Composable
 fun PairScreen(onBack: () -> Unit, onDone: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    var domain by remember { mutableStateOf(Prefs.domain) }
+    var endpoint by remember { mutableStateOf(Prefs.relayBase) }
     var code by remember { mutableStateOf("") }
 
     val status by Link.status.collectAsState()
     val error by Link.error.collectAsState()
+    val btDevices by Link.btDevices.collectAsState()
 
     LaunchedEffect(status) {
-        if (status == LinkStatus.ONLINE || (Link.demo.value && status == LinkStatus.OFFLINE)) {
-            onDone()
-        }
+        if (status == LinkStatus.ONLINE) onDone()
     }
 
     Column(
@@ -74,18 +71,19 @@ fun PairScreen(onBack: () -> Unit, onDone: () -> Unit) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Enter the domain exposed by your PC and the one-time code\nshown by omarchy-connect on that machine.",
+            text = "The PC shows an 8-character code (relay). Bluetooth mode works " +
+                "without any account when the relay is unreachable.",
             style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurfaceVariant
         )
 
         Spacer(Modifier.height(24.dp))
-        SectionLabel("domain")
+        SectionLabel("relay endpoint")
         Spacer(Modifier.height(6.dp))
         OcTextField(
-            value = domain,
-            onValueChange = { domain = it },
-            placeholder = "omarchy.example.com",
+            value = endpoint,
+            onValueChange = { endpoint = it },
+            placeholder = "omarchy-connect.rocknite-studio.com",
             keyboardType = KeyboardType.Uri,
             imeAction = ImeAction.Next
         )
@@ -95,8 +93,8 @@ fun PairScreen(onBack: () -> Unit, onDone: () -> Unit) {
         Spacer(Modifier.height(6.dp))
         OcTextField(
             value = code,
-            onValueChange = { code = it },
-            placeholder = "XXXX-XXXX",
+            onValueChange = { code = it.uppercase() },
+            placeholder = "XXXXXXXX",
             keyboardType = KeyboardType.Ascii,
             imeAction = ImeAction.Done
         )
@@ -113,42 +111,57 @@ fun PairScreen(onBack: () -> Unit, onDone: () -> Unit) {
         Spacer(Modifier.height(22.dp))
         OcButton(
             text = when (status) {
-                LinkStatus.PAIRING -> "Waiting for confirmation…"
+                LinkStatus.PAIRING -> "Deriving E2E key…"
                 LinkStatus.CONNECTING -> "Connecting…"
-                else -> "Pair"
+                else -> "Pair over relay"
             },
             accent = true,
-            enabled = status != LinkStatus.PAIRING && status != LinkStatus.CONNECTING,
+            enabled = status != LinkStatus.PAIRING && status != LinkStatus.CONNECTING && code.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            onClick = {
-                Link.domain.value = Protocol.normalizeDomain(domain)
-                Link.pair(code)
-            }
+            onClick = { Link.pair(code, endpoint) }
         )
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(16.dp))
         Text(
             text = "Continue without an account",
             style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurfaceVariant,
+            color = scheme.primary,
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable {
-                    Link.enableDemo()
-                    onDone()
+                    Link.connectBluetooth()
                 }
                 .padding(vertical = 4.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
+        Text(
+            text = "Bluetooth RFCOMM only · pair the PC in Android settings first",
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        if (btDevices.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            btDevices.forEach { device ->
+                Text(
+                    text = "> bt $device",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 1.dp)
+                )
+            }
+        }
 
         Spacer(Modifier.height(28.dp))
         SectionLabel("security")
         Spacer(Modifier.height(8.dp))
         listOf(
-            "keystore: private key never leaves the device",
-            "transport: wss:// only, cleartext disabled",
-            "pairing: 6-digit code, 30s window, one-shot",
-            "session: random token, encrypted at rest"
+            "identity: EC P-256 in Android Keystore (private key never leaves)",
+            "relay: signed nonce (ECDSA), one-shot, 60s anti-replay",
+            "payloads: AES-256-GCM (ECDH + HKDF), opaque to the server",
+            "pairing: 8-char one-shot code, 180s window",
+            "bluetooth: RFCOMM/SPP, bonded device + ECDH session key"
         ).forEach {
             Text(
                 text = "> $it",

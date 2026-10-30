@@ -30,6 +30,8 @@ p256 = { version = "0.13", features = ["ecdsa", "ecdh"] }
 ecdsa = { version = "0.16", features = ["der"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
+bluer = { version = "0.17", features = ["bluetoothd", "rfcomm"] }
+libc = "0.2"
 
 [profile.release]
 lto = true

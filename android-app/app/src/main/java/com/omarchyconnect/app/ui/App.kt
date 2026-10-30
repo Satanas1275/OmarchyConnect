@@ -57,7 +57,7 @@ enum class Route(val label: String, val icon: ImageVector?) {
 /** Racine de l'UI : navigation simple (pas de dépendance navigation-compose). */
 @Composable
 fun OmarchyApp() {
-    val start = if (Prefs.paired || Link.demo.value) Route.HOME else Route.WELCOME
+    val start = if (Prefs.paired) Route.HOME else Route.WELCOME
     var route by remember { mutableStateOf(start) }
     val scheme = MaterialTheme.colorScheme
 
